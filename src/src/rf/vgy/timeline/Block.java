@@ -1,6 +1,7 @@
 package rf.vgy.timeline;
 
 import java.io.*;
+import java.nio.ByteBuffer;
 import java.util.*;
 
 public class Block {
@@ -103,18 +104,30 @@ public class Block {
 	}
 
 	private byte[] getLengthBytes (int i) {
-		  byte[] result = new byte[4];
-
-		  result[0] = (byte) (i >> 24);
-		  result[1] = (byte) (i >> 16);
-		  result[2] = (byte) (i >> 8);
-		  result[3] = (byte) (i /*>> 0*/);
+		ByteBuffer b=ByteBuffer.allocate(4);
+		b.putInt(i);
+		byte[] result = b.array();
+//		  byte[] result = new byte[4];
+//
+//		  result[0] = (byte) (i >> 24);
+//		  result[1] = (byte) (i >> 16);
+//		  result[2] = (byte) (i >> 8);
+//		  result[3] = (byte) (i /*>> 0*/);
+		  
+		  int j=getLengthFromBytes(result);
+		  if (j != i) throw new RuntimeException("UGH-----------------------------------------------------");
 	
 		  return result;
 	}
 	
 	private int getLengthFromBytes (byte[] buf) {
-		return (buf[0]<<24) | (buf[1]<<16) | (buf[2]<<8) | buf[3];
+		ByteBuffer b=ByteBuffer.allocate(4);
+		int i = b.wrap(buf).getInt();
+		if (i<0) throw new RuntimeException("Invalid length: " + i);
+		return i;
+//		
+//		((byte) buf[0])<<24
+//		return ((byte) (buf[0]<<24)) | ((byte)(buf[1]<<16)) | ((byte)(buf[2]<<8)) | ((byte)buf[3]);
 	}
 
 	/**
@@ -130,6 +143,9 @@ public class Block {
 		byte[] len=new byte[4];
 		if (raf.read(len) != len.length) throw new Exception("read failed: length field");
 		int length=getLengthFromBytes (len);
+		
+		System.out.println("length=" + length);
+		
 		
 		if (length == 0) return new byte[0];
 		

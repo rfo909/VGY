@@ -28,8 +28,15 @@ public class Test {
 						FileInputStream fis=new FileInputStream(f);
 						int len=fis.read(buf);
 						if (len > 0) {
-							timeline.add(f.getCanonicalPath(), buf, len);
+							String key=f.getCanonicalPath();
+							timeline.add(key, buf, len);
 							System.out.println("Runner " + prefix + ": " + f.getCanonicalPath());
+							byte[] buf2=timeline.get(key);
+							if (buf2.length != len) throw new Exception("Invalid length");
+							for (int i=0; i<len; i++) {
+								if (buf2[i] != buf[i]) throw new Exception("Mismatch");
+							}
+							System.out.println("Runner " + prefix + ": ok");
 						}
 					} catch (Exception ex) {
 						ex.printStackTrace();
