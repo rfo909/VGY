@@ -1,0 +1,146 @@
+VGY reminagined
+----------------
+Reducing complexity by running a simple server that does serial saves,
+while serving lookups in parallel over a fixed number of threads. 
+
+Assumes secure storage (RDBD) + VM 
+
+Impemented in Java.
+
+Not a database, just a blob storage.
+
+A real database can be created on top of it, storing indexes as objects in VGY etc.
+
+Accumulation for ELK replacement is considered external to the data store, while
+the accumulation data will naturally be stored in VGY.
+
+
+Need a better database
+======================
+
+It lives independently from CFT, and stores binary data, identified by a string key.
+There are no collections here, but they can be simulated via prefixing the key, 
+for example using colon: "myCollection:...."
+
+The database uses a total of three time lines. Each consists of a number of blocks, each
+written to a separate file. 
+
+
+
+Main time line (M)
+------------------
+The data are added in blocks, each block contains a fixed number of
+data objects, to control the size of the index.
+
+When a block is full, it is closed, and the next initiated. The index for the
+block is also synced to disk then closed. 
+
+Active block
+------------
+The last block is active, and its index is stored in RAM only. When
+a block is closed, its index is written to file. Both the block and
+the index are now static, and will not change.
+
+Block criteria
+--------------
+- a maximum number of unique objects - limits index size  
+- object updates within same block are not counted
+- maximum file size
+- maximum time span from first to last entry added
+
+Indexing
+--------
+The index accompanying each block keeps track of the
+latest update for each known object-id within the block
+
+Saving, updating, deleting data
+-------------------------------
+Require an object key, plus binary data.
+Stores key + currtime + dataLength + data
+To update an object, save it again.
+To delete an object, save it with a null-object (zero bytes)
+
+Lookup
+------
+Searching for an object by id employs the indexes, to locate the latest update
+for that id. If that is a null object, or none found, the lookup fails.
+
+
+Keys in sequence
+----------------
+Given a key prefix (collection name), and a fromTime and toTime, the database needs to produce 
+a list of keys in time sorted order for last update of each object. This is run in parallel on all 
+blocks that (partially) overlap with the time duration, and merged into a result list, including 
+date/time for when the entry was added. Objects that were deleted within the duration, are 
+removed from the result.
+
+
+Timeout 
+-------
+A global timeout value is defined. When data exceeds this timeout value, they 
+are no longer part of the timeline. 
+
+Queries need to respect this timeout by the millisecond, even though the oldest blocks
+of the timeline storage may still exist. 
+ 
+
+Persistent data
+---------------
+When data reaches timeout, they are either dropped, or moved to the persistent data collection.
+
+The persistent data storage consists of two time lines, A and B. 
+
+Timeline A is the "current", to which data from M are added. Timeline B is
+the one "under construction", as we cycle through data from timeline A. 
+
+
+House-keeping job 1 (M->A)
+--------------------------
+As the oldest block in the time line expires, the data inside are moved
+appended to timeline A as-is. 
+
+
+House-keeping job 2 (A->B)
+--------------------------
+A second background job reads data from the oldest block of the
+A timeline. For each saved object, we check if it has been updated
+forward in time, specifically in timeline A. If not, it is kept, 
+by appending to B timeline.
+
+At some point, when there is only one block left in timeline A, job1 is
+disabled, while job 2 processes remaining content of A into B.
+
+Then the B timeline becomes the new A timeline, and job1 is enabled
+again.
+
+
+Jobs summary
+------------
+The first job expires data from the main timeline into persistent storage,
+unchanged. The reason they can not be checked against timeline M, is that
+all of timeline M may be rolled back, to restore the data store to
+an earlier state. See Rollback.
+
+The second job traverses persistent storage, freeing up space when new
+updates replace old object saves.
+
+The persistent storage is time sorted, but does not contain the full
+change history of all data. 
+
+
+Rollback
+--------
+The main timeline (M) has dual functionality. It may be used as a way
+of creating summarized data as an ELK replacement for statistics, and
+it supports rollback.
+
+By copying data from M to A, without regards for changes to those data
+at later times (in M), the persistent data store reflects the
+correct state of the database up until the start of the main timeline,
+as defined by the global timeout value. 
+
+
+
+
+
+
