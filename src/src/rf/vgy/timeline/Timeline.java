@@ -50,16 +50,20 @@ public class Timeline {
 			blocks.add(block);
 			writeBlock=block;
 		}
+		Collections.sort(blocks);
+//		// verify sort
+//		long x=-1;
+//		for (Block b:blocks) {
+//			if (b.getBlockId() < x) throw new Exception("INTERNAL ERROR: sort error");
+//			x=b.getBlockId();
+//		}
 	}
 	
-	/**
-	 * Synchronized method, as it includes creating new blocks when needed
-	 */
-	public synchronized void add (String key, byte[] data, int len) throws Exception {
+	
+	public synchronized void store (String key, byte[] data, int len) throws Exception {
 		writeBlock.add(key, data, len);
 		if (writeBlock.blockIsFull()) {
 			long nextBlockId=writeBlock.getBlockId()+1;
-			//System.out.println("Creating new block " + nextBlockId);
 			
 			Block block=new Block(dir,nextBlockId,name);
 			blocks.add(block);
@@ -67,38 +71,25 @@ public class Timeline {
 		}
 	}
 	
-	public void add (String key, String data) throws Exception {
+	public void store (String key, String data) throws Exception {
 		byte[] buf=data.getBytes("UTF-8");
-		add(key,buf,buf.length);
+		store(key,buf,buf.length);
 	}
 
-	/**
-	 * NEEDS OPTIMIZATION. Blocks should be in sorted order, and
-	 * there should be a pool of threads that would search N blocks in
-	 * parallel at a time, starting with the highest block id's and moving
-	 * down, looking for hit with largest block id (which means added latest)
-	 */
-	public byte[] get (String key) throws Exception {
-		byte[] result=null;
-		long blockId=-1;
-		
+	public byte[] retrieve (String key) throws Exception {
 		for (Block block:blocks) {
 			byte[] data=block.get(key);
-			if (data != null && block.getBlockId() > blockId) {
-				blockId=block.getBlockId();
-				result=data;
-			}
+			if (data != null) return data;
 		}
-		return result;
+		return null;
 	}
 	
-	public String getString (String key) throws Exception {
-		byte[] result=get(key);
+	public String retrieveString (String key) throws Exception {
+		byte[] result=retrieve(key);
 		if (result==null) return null;
 		if (result.length==0) return "";
 		return new String(result,"UTF-8");
 	}
-	
 	
 
 }

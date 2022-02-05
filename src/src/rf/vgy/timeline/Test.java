@@ -17,6 +17,7 @@ public class Test {
 			this.dataPath=dataPath;
 			this.buf=new byte[MAX];
 		}
+		
 		public void run() {
 			File dir=new File(dataPath);
 			traverseDir(dir);
@@ -29,17 +30,17 @@ public class Test {
 						int len=fis.read(buf);
 						if (len > 0) {
 							String key=f.getCanonicalPath();
-							timeline.add(key, buf, len);
-							System.out.println("Runner " + prefix + ": " + f.getCanonicalPath());
-							byte[] buf2=timeline.get(key);
+							timeline.store(key, buf, len);
+							//System.out.println("Runner " + prefix + ": " + f.getCanonicalPath());
+							byte[] buf2=timeline.retrieve(key);
 							if (buf2.length != len) throw new Exception("Invalid length");
 							for (int i=0; i<len; i++) {
 								if (buf2[i] != buf[i]) throw new Exception("Mismatch");
 							}
-							System.out.println("Runner " + prefix + ": ok");
 						}
 					} catch (Exception ex) {
 						ex.printStackTrace();
+						return;
 					}
 				} else if (f.isDirectory()) {
 					traverseDir(f);
@@ -57,6 +58,7 @@ public class Test {
 		Runner b=new Runner("b", t, "/home/roar/Pictures");
 		Runner c=new Runner("c", t, "/home/roar/Downloads");
 		Runner d=new Runner("d", t, "/home/roar/Roar");
+
 		(new Thread(a)).start();
 		(new Thread(b)).start();
 		(new Thread(c)).start();

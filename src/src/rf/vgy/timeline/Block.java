@@ -4,7 +4,7 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-public class Block {
+public class Block implements Comparable<Block> {
 	
 	private final long blockId;
 	private final String name;
@@ -21,7 +21,7 @@ public class Block {
 	//public static final int BLOCK_FULL_INDEX_SIZE = 2^20;
 	
 	public static final int BLOCK_FULL_BYTES = 1024*1024*1024;
-	public static final int BLOCK_FULL_INDEX_SIZE = 10000;
+	public static final int BLOCK_FULL_INDEX_SIZE = 1024*1024;
 	
 	
 	public Block(File dir, long blockId, String name) throws Exception {
@@ -36,6 +36,17 @@ public class Block {
 		
 		if (dataFile.exists()) readIndex();
 	}
+	
+    @Override
+    public int compareTo(Block block) {
+    	if (blockId<block.blockId) return -1;
+    	if (blockId>block.blockId) return 1;
+    	return 0;
+    }
+    
+    public synchronized long getKeyCount() {
+    	return index.size();
+    }
 	
 	public synchronized boolean blockIsFull() throws Exception {
 		return raf.length() > BLOCK_FULL_BYTES || index.size() > BLOCK_FULL_INDEX_SIZE;
@@ -135,7 +146,6 @@ public class Block {
 	 */
 	public synchronized byte[] get (String key) throws Exception {
 		Long pos=index.get(key);
-		//System.out.println("get.pos=" + pos);
 		if (pos==null) return null;
 		
 		// read data
@@ -143,9 +153,6 @@ public class Block {
 		byte[] len=new byte[4];
 		if (raf.read(len) != len.length) throw new Exception("read failed: length field");
 		int length=getLengthFromBytes (len);
-		
-		System.out.println("length=" + length);
-		
 		
 		if (length == 0) return new byte[0];
 		
